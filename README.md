@@ -1,7 +1,5 @@
 # Classroom Feedback System — Django + DRF Authentication & RBAC Demo
 
-**Zindua School Software Technical Mentor Stage 2 Assessment**
-
 This submission demonstrates a complete classroom feedback system built with Django and Django REST Framework, showcasing JWT-based authentication and role-based access control (RBAC) for teaching purposes.
 
 ---
