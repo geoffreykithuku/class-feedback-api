@@ -29,7 +29,7 @@ This demo is built to teach learners:
 
 ### Live Demo (Backend Only)
 
-**Live URL:** [Add deployed URL here — see Deployment section below]
+**Live URL:** https://class-feedback-api.onrender.com
 
 **Demo Credentials:**
 
@@ -54,7 +54,7 @@ All demo data is pre-seeded with sample assignments and submissions. See [Local 
 ### 1. Clone and Enter the Repository
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/geoffreykithuku/class-feedback-api
 cd classroom-feedback-api
 ```
 

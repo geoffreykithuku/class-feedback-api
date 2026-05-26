@@ -9,73 +9,64 @@
 
 ## The 60-Minute Plan
 
-| Time | Segment | Format |
-|------|---------|--------|
-| 0–5 min | Context: why access control matters | Discussion |
-| 5–20 min | Authentication — proving who you are | Live demo + explanation |
-| 20–35 min | Role-based access control | Live demo + code walkthrough |
-| 35–50 min | Row-level security — the part most systems miss | Live demo + code walkthrough |
-| 50–57 min | Guided practice | Learner activity |
-| 57–60 min | Recap and Q&A | Discussion |
+| Time      | Segment                     |
+| --------- | --------------------------- |
+| 0–5 min   | Hook: the core problem      |
+| 5–20 min  | JWT login and token refresh |
+| 20–35 min | Role-based permissions      |
+| 35–50 min | Row-level security          |
+| 50–57 min | Guided practice             |
+| 57–60 min | Recap and Q&A               |
 
 ---
 
 ## Segment Detail
 
-### 0–5 min — Context Setting
+### 0–5 min — Hook
 
-Open with a concrete scenario rather than definitions:
+**Open with the problem, not definitions:**
 
-> "You have built an API for a school. A student logs in and requests `/api/submissions/`. Should they see *every* student's work, or only their own? What stops them from changing the URL to `/api/submissions/2/` and reading someone else's assignment?"
+> "You've built an API for a school. A student logs in and requests `/api/submissions/`. Should they see every student's work, or only their own? What stops them from changing the URL to `/api/submissions/2/` and reading someone else's assignment?"
 
-Take one or two answers from the room. The goal is to surface the gap: learners have been building APIs that trust the caller completely. Today we stop trusting callers.
+Let them answer. The gap I'm surfacing: all the APIs they've built so far trust the caller completely. This session is about not doing that.
 
-Show the live demo briefly — just enough for learners to see the finished system. A student logging in, getting a token, and being blocked from an instructor endpoint. Don't explain it yet. The goal is curiosity, not comprehension.
-
-**Why this first:** People learn better when they know why the lesson matters before the mechanics arrive. Starting with the demo gives learners a destination to orient toward.
+Quick demo of the finished system — student logs in, gets a token, hits an endpoint they shouldn't be able to reach, gets blocked. Enough to make them curious. Don't explain yet.
 
 ---
 
-### 5–20 min — Authentication: Proving Who You Are
+### 5–20 min — Authentication: JWT Login and Token Refresh
 
-**Core question for this segment:** "How does the server know *who* is making this request?"
+**Postman demo sequence:**
 
-**Live demo sequence (Postman):**
+1. `POST /api/v1/auth/login/` with `student@demo.dev` — show the response with `access` and `refresh` tokens
+2. Copy the access token, paste into jwt.io — decode it live to show the payload (readable, not encrypted)
+3. `GET /api/v1/assignments/` without a token → 401
+4. Same request with `Authorization: Bearer <token>` → 200
+5. `POST /api/v1/auth/refresh/` with the refresh token → new access token
 
-1. `POST /api/v1/auth/login/` with `student@demo.dev` credentials → show the response containing `access` and `refresh` tokens
-2. Copy the access token, paste it into jwt.io in the browser — show the decoded payload live. Point out: the payload is readable. It is *not* encrypted.
-3. Make a request to `GET /api/v1/assignments/` *without* a token — show the 401
-4. Add the `Authorization: Bearer <token>` header — show the 200
-5. Demonstrate token refresh: `POST /api/v1/auth/refresh/` with the refresh token → new access token
+**Concepts to land:**
 
-**Concepts to cover:**
+- Auth vs. authz — they're different problems
+- JWT structure: header, payload, signature. Payload is readable, signature prevents tampering.
+- Why access tokens are short-lived and refresh tokens are longer
+- Why APIs use tokens instead of sessions
 
-- Authentication vs. authorization — establish these terms clearly before moving on. Authentication is identity. Authorization is permission. They are different problems solved at different layers.
-- What a JWT contains (header, payload, signature) and why the signature matters
-- Why access tokens are short-lived and refresh tokens exist
-- Why APIs use tokens instead of sessions (statelessness, mobile clients, cross-domain requests)
-
-**Why this segment comes before permissions:** You cannot meaningfully discuss what a user is allowed to do until the system knows who the user is. `request.user` must exist before any permission check can run.
+The reason this comes first: can't talk meaningfully about what a user can do until the system knows who they are. `request.user` has to exist first.
 
 ---
 
-### 20–35 min — Role-Based Access Control
+### 20–35 min — Role-Based Permissions
 
-**Core question for this segment:** "Given that we know *who* the user is, how do we decide what they're *allowed* to do?"
+**Demo sequence:**
 
-**Live demo sequence:**
+1. Log in as `student@demo.dev`, try `POST /api/v1/assignments/` → 403 Forbidden
+2. Log in as `instructor@demo.dev`, same request → succeeds
+3. Open `permissions.py`, walk through `IsInstructor` line by line
 
-1. Log in as `student@demo.dev`. Attempt `POST /api/v1/assignments/` — show the 403 Forbidden response
-2. Log in as `instructor@demo.dev`. Make the same request — show it succeeds
-3. Open `permissions.py` in the codebase. Walk through `IsInstructor` class line by line
-
-**Code to walk through:**
+**Code to show:**
 
 ```python
 class IsInstructor(BasePermission):
-    """
-    Grants access only to users with the INSTRUCTOR role.
-    """
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated and
@@ -83,33 +74,32 @@ class IsInstructor(BasePermission):
         )
 ```
 
-**Key teaching points:**
+**Key points:**
 
-- `has_permission` runs on every request before the view executes — it is a gatekeeper, not a filter
-- Returning `False` produces a 403, not a 404. Discuss briefly why (the distinction matters for security vs. UX)
-- Roles are "capability buckets": the role answers what *kind* of user you are, not which specific data you can touch. That is the next segment.
+- `has_permission` is a gatekeeper — runs before the view
+- Returns 403, not 404 (tells the user the resource exists but they can't access it)
+- Need to check `is_authenticated` first — unauthenticated users have `AnonymousUser`, which has no `role` attribute
+- Roles answer "what _type_ of user are you?" — not which specific data you can see
 
-**Why this segment follows authentication:** Role checks require a known user. Only once the JWT middleware has set `request.user` can a permission class inspect `request.user.role`.
+This is endpoint-level access control. The next segment is data-level.
 
 ---
 
-### 35–50 min — Row-Level Security: The Part Most Systems Miss
+### 35–50 min — Row-Level Security
 
-**Core question for this segment:** "Even if a user has the right role, how do we ensure they can only see *their own* data?"
+**The problem I'm solving:**
 
-**Open with the attack:**
+> "Our student is authenticated. They have the Student role. They can hit `GET /api/v1/submissions/`. But if the database has 200 submissions from 50 students, what does the student actually get back? All of them?"
 
-> "Our student is authenticated. They have the Student role. So they can hit `GET /api/v1/submissions/`. But what if the database has 200 submissions from 50 students? What does the student actually get back?"
+Show what a naive implementation does — returns all rows. This is the IDOR vulnerability.
 
-Show — without row-level filtering — that a naive implementation returns all 200 rows. This is a real class of vulnerability called an Insecure Direct Object Reference (IDOR).
+**Demo sequence:**
 
-**Live demo sequence:**
+1. Logged in as `student@demo.dev` — `GET /api/v1/submissions/` returns only their own submissions
+2. Try `GET /api/v1/submissions/99/` (another student's submission) → 404
+3. Log in as `observer@demo.dev` — can only see the student they're linked to
 
-1. Logged in as `student@demo.dev` — `GET /api/v1/submissions/` returns only their own three submissions
-2. Attempt `GET /api/v1/submissions/99/` (a submission belonging to another student) — show the 404
-3. Log in as `observer@demo.dev` — `GET /api/v1/submissions/{id}/feedback/` returns only the linked student's data. Explain the Observer is *linked* to a specific student record — it is not a role check, it is a relationship check.
-
-**Code to walk through:**
+**Code to show:**
 
 ```python
 def get_queryset(self):
@@ -123,41 +113,43 @@ def get_queryset(self):
         return Submission.objects.filter(student=linked_student)
 ```
 
-**Key teaching points:**
+**Key points:**
 
-- Queryset filtering happens at the data layer, not the permission layer — these are different tools for different problems
-- Return 404 (not 403) when a row exists but the user shouldn't see it — never confirm existence of data the user can't access
-- The Observer is the worked example of row-level: two observers with the same role could be linked to different students. Role alone cannot enforce this. Only a relationship check can.
+- Row filtering happens at the queryset layer, not the permission layer — different tools for different problems
+- Return 404 when a row exists but the user can't see it (don't confirm existence of hidden data)
+- Observer is the worked example: two observers with the same role, different data access. Role checks can't handle this. Only relationship checks can.
 
-**Why this is the core segment:** This is the layer that production systems most commonly get wrong. Learners who leave understanding only role-level protection will write vulnerable APIs. This segment is the reason the lesson exists.
+This is the layer most systems get wrong. Both earlier layers can pass and this one still leak data.
 
 ---
 
 ### 50–57 min — Guided Practice
 
-Learners work individually or in pairs. Two tasks, in order of difficulty:
+**Task 1 (foundation):**
 
-**Task 1 (accessible):** Using the seeded demo credentials, use Postman to:
-- Log in as each of the three roles
-- Identify one endpoint each role can access and one it cannot
-- Attempt to access another student's submission as the student — record the response code and explain why
+- Use Postman to log in as each role
+- Find one endpoint each can access and one they can't
+- Try to access another student's submission — record the response code
 
-**Task 2 (stretch):** In the codebase, find the `get_queryset` method for `SubmissionViewSet`. Modify it to add a fourth hypothetical role — `AUDITOR` — that can see all submissions but cannot create or modify anything.
+**Task 2 (stretch):**
 
-**Why practice before the recap:** Active retrieval during a session embeds the concepts more effectively than hearing a summary. The tasks are designed to be completable in 7 minutes — they consolidate, not introduce.
+- Find the `get_queryset` method in `SubmissionViewSet`
+- Add support for a hypothetical `AUDITOR` role that can see all submissions but can't modify anything
+
+Seven minutes is tight — these are meant to consolidate, not introduce new material.
 
 ---
 
 ### 57–60 min — Recap and Q&A
 
-Verbal recap — ask the room, do not tell:
+**Ask them, don't tell them:**
 
-- "What is the difference between a 401 and a 403?" (authentication failure vs. authorisation failure)
+- "What's the difference between a 401 and a 403?"
 - "Why does the Observer need a row-level check rather than just a role check?"
-- "Where in the code does `request.user` get set? What sets it?"
+- "Where in the code does `request.user` get set?"
 
-Close with a one-sentence mental model:
+**Closing line:**
 
-> **Authentication answers WHO. Authorization answers WHAT. Queryset filtering answers WHICH ROWS.**
+> Authentication answers WHO. Authorization answers WHAT. Queryset filtering answers WHICH ROWS.
 
-Take any remaining questions.
+Take questions.
