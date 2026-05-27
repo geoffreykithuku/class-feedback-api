@@ -27,6 +27,12 @@ class Command(BaseCommand):
             role="student"
         )
 
+        student2 = User.objects.create_user(
+            email="student2@demo.dev",
+            password="Demo@1234",
+            role="student"
+        )
+
         observer = User.objects.create_user(
             email="observer@demo.dev",
             password="Demo@1234",
@@ -60,6 +66,18 @@ class Command(BaseCommand):
             assignment=assignment2,
             student=student,
             content="RBAC implementation"
+        )
+
+        Submission.objects.create(
+            assignment=assignment1,
+            student=student2,
+            content="Student 2's JWT implementation"
+        )
+
+        Submission.objects.create(
+            assignment=assignment2,
+            student=student2,
+            content="Student 2's RBAC implementation"
         )
 
         self.stdout.write(self.style.SUCCESS("Demo data created successfully"))

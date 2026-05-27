@@ -48,12 +48,25 @@ class SubmissionListView(generics.ListAPIView):
 
 class SubmissionFeedbackView(generics.RetrieveUpdateAPIView):
     serializer_class = SubmissionSerializer
-    permission_classes = [IsAuthenticated, IsInstructor]
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         user = self.request.user
 
         # Instructor can only access submissions for their assignments
-        return Submission.objects.filter(
-            assignment__instructor=user
-        )
+        if user.role == "instructor":
+            return Submission.objects.filter(
+                assignment__instructor=user
+            )
+        
+        # Student can view feedback for their own submissions
+        if user.role == "student":
+            return Submission.objects.filter(student=user)
+        
+        
+        # Observer can view feedback for linked student's submissions
+        if user.role == "observer":
+            linked = ObserverStudentLink.objects.get(observer=user)
+            return Submission.objects.filter(student=linked.student)
+        return Submission.objects.none()
+    
